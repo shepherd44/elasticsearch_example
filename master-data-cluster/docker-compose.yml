@@ -1,0 +1,83 @@
+version: '2.2'
+services:
+  es-master-01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.2
+    container_name: es-master-01
+    environment:
+      - node.name=es-master-01
+      - node.roles=master
+      - cluster.name=es-docker-cluster
+      - cluster.initial_master_nodes=es-master-01
+      - discovery.seed_hosts=es-data-01,es-data-02
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - master01:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+
+  es-data-01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.2
+    container_name: es-data-01
+    environment:
+      - node.name=es-data-01
+      - node.roles=data
+      - cluster.name=es-docker-cluster
+      - cluster.initial_master_nodes=es-master-01
+      - discovery.seed_hosts=es-master-01,es-data-02
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+
+  es-data-02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.2
+    container_name: es-data-02
+    environment:
+      - node.name=es-data-02
+      - node.roles=data
+      - cluster.name=es-docker-cluster
+      - cluster.initial_master_nodes=es-master-01
+      - discovery.seed_hosts=es-master-01,es-data-01
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data02:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.2
+    container_name: kibana
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://es-master-01:9200"]'
+    ports:
+      - 5601:5601
+    networks:
+      - elastic
+
+volumes:
+  master01:
+    driver: local
+  data01:
+    driver: local
+  data02:
+    driver: local
+
+networks:
+  elastic:
+    driver: bridge
