@@ -1,0 +1,81 @@
+# ENV: ELK_VERSION
+version: '2.2'
+services:
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - elastic
+    volumes:
+      - ./postgres/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/data/:/var/lib/postgresql/data:rw
+      - pglogs:/var/log/postgresql/:rw
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:${ELK_VERSION}
+    container_name: metricbeat
+    command: metricbeat -e -system.hostfs=/hostfs -strict.perms=false
+    user: root
+    environment:
+      ELASTICSEARCH_HOSTS: es:9200
+      KIBANA_HOSTS: kibana:5601
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOSTS: postgres:5432
+    volumes:
+      - ./metricbeat/config/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+      - ./metricbeat/modules.d/:/usr/share/metricbeat/modules.d/
+      # The commented sections below enable Metricbeat to monitor the Docker host rather than the Metricbeat container. These are used by the system module.
+      - /proc:/hostfs/proc:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      #Allows us to report on docker from the hosts information
+      - /var/run/docker.sock:/var/run/docker.sock
+      #We mount the host filesystem so we can report on disk usage with the system module
+      - /:/hostfs:ro
+    restart: on-failure
+    networks:
+      - elastic
+    depends_on:
+      - postgres
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELK_VERSION}
+    container_name: filebeat
+    user: root
+    command: filebeat -e -strict.perms=false
+    environment:
+      ELASTICSEARCH_HOSTS: es:9200
+      KIBANA_HOSTS: kibana:5601
+    volumes:
+      - ./filebeat/config/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      #Mount the prospectors directory. Users can in turn add propspectors to this directory and they will be dynamically loaded
+      - ./filebeat/prospectors.d/:/usr/share/filebeat/prospectors.d/
+      #Mount postgres log data
+      - pglogs:/var/log/postgresql/:ro
+      #Mount the docker logs for indexing by the custom prospector ./config/filebeat/prospectors.d
+      - /var/lib/docker/containers:/hostfs/var/lib/docker/containers
+      #Named volume fsdata. This is used to persist the registry file between restarts, so to avoid data duplication
+      - fbdata:/usr/share/filebeat/data/
+    restart: on-failure
+    networks:
+      - elastic
+    depends_on:
+      - postgres
+
+volumes:
+  #Filebeat data i.e. registry file
+  fbdata:
+    driver: local
+  #Postgesql log data
+  pglogs:
+    driver: local
+
+networks:
+  elastic:
+    driver: bridge
+    external:
+      name: elastic

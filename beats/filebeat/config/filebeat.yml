@@ -1,0 +1,20 @@
+filebeat.modules:
+  #Filebeat system module consumes logs from host OS through a mounted volume
+  - module: system
+    syslog:
+      var.paths: ["/var/log/host/system.log*"]
+
+  #Filebeat postgres
+  - module: postgresql
+    log:
+      enabled: true
+      var.paths: ['/var/log/postgresql/*.log*']
+
+# processors:
+#   - add_cloud_metadata: ~
+
+setup.kibana:
+  host: "${KIBANA_HOSTS}"
+
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS}"]
